@@ -11,21 +11,18 @@ separately, so repeating a corner is punished per person.
 
 ## The moments that mattered
 
-**The rule was wrong, not the numbers.**
-[`40ebe23`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/40ebe23)
+**The rule was wrong, not the numbers — twice.**
+[`40ebe23`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/40ebe23),
+[`2acffae`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/2acffae)
 Playing it, I hit the far corner with the keeper on the opposite post — and it
 still saved. The keeper was *assigned* a zone from shot history; distance never
 entered the model, so the verdict preceded the ball. I replaced placement with
 physics: `reach = flight(power) × speed`, making a save geometry rather than a
-ruling, and drove the animation off that same `flight(power)`.
-
-**A number I had no right to pick by feel.**
-[`2acffae`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/2acffae)
-It kept happening, because I'd earlier raised `KEEPER_SPEED` to 2.45 to widen
-the skill gap — letting it cross the goal in 816ms. That speed is pinned at
-both ends: below 1.99 or the far corner is never safe, above 1.47 or a limp
-ball is never punished. My test had passed because it checked one power value.
-It now sweeps the band, and goes red at 2.45.
+ruling. Then it happened again, because I'd separately raised `KEEPER_SPEED`
+to 2.45 by feel, letting it cross the goal in 816ms. That number is pinned at
+both ends — under 1.99 or the far corner is never safe, over 1.47 or a limp
+ball is never punished. My test had passed because it checked one power value;
+it now sweeps the band and goes red at 2.45.
 
 **A correction that went into the harness.**
 [`2652d8f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/2652d8f)
@@ -37,11 +34,10 @@ it went red on the old name first.
 
 **Where the brief and the feature disagree.**
 [`e5c237e`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/e5c237e)
-Two players need names, and a name screen means the opening frame is a form
-rather than the pitch — which is in tension with *no instructions anywhere on
-screen*. I built it with no instructional text at all (two coloured fields, a
-play triangle) and kept it in a single commit that can be reverted whole,
-rather than quietly letting a feature erode a published spec line.
+Two players need names, so the opening frame became a form rather than the
+pitch — in tension with *no instructions anywhere on screen*. I gave it no
+instructional text (two coloured fields, a play triangle) and kept it in one
+revertible commit, rather than let a feature quietly erode a spec line.
 
 ## Grounding
 
