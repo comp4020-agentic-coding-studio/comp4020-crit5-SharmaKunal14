@@ -13,7 +13,8 @@ import {
 const TOTAL_SHOTS = 5;
 const POWER_CYCLE_MS = 1500;
 const PACE_CYCLE_MS = 2600;
-const REVEAL_MS = 1250;
+const REVEAL_MS = 1150;
+const RECOVER_MS = 340;
 
 const pitch = document.getElementById('pitch') as HTMLDivElement;
 const goal = document.getElementById('goal') as HTMLDivElement;
@@ -34,12 +35,19 @@ let goals = 0;
 let shotsTaken = 0;
 let chargeStart = 0;
 let pace = 1;
+let paceClock = 0;
+let lastFrame = 0;
 
-for (let i = 0; i < TOTAL_SHOTS; i++) {
-  const pip = document.createElement('div');
-  pip.className = 'pip';
-  scoreboard.appendChild(pip);
-}
+// replaceChildren, not append: a hot reload re-runs this module against the
+// live DOM, and appending would stack a second row of pips into the same flex
+// container.
+scoreboard.replaceChildren(
+  ...Array.from({ length: TOTAL_SHOTS }, () => {
+    const pip = document.createElement('div');
+    pip.className = 'pip';
+    return pip;
+  })
+);
 
 /* --- Geometry ----------------------------------------------------------- */
 
@@ -68,26 +76,34 @@ function paceToKeeperLeft(position: number): number {
 
 /* --- Rendering ---------------------------------------------------------- */
 
+const DIVE_CLASSES = ['dive-low', 'dive-high', 'dive-left', 'dive-center', 'dive-right'];
+
 function renderKeeperPacing(position: number) {
   keeper.classList.add('pacing');
-  keeper.classList.remove('diving', 'saved');
-  keeper.classList.remove(
-    'dive-low',
-    'dive-high',
-    'dive-left',
-    'dive-center',
-    'dive-right'
-  );
   keeper.style.left = `${paceToKeeperLeft(position)}%`;
-  keeper.style.transform = '';
 }
 
 function renderKeeperDive(zone: Zone) {
+  // `.pacing` carries `transition: none` so the per-frame pacing doesn't
+  // smear. Dropping it and moving the keeper in the same style batch would
+  // give the transition no start value --- the keeper teleports sideways and
+  // only the rotation animates. Flushing layout in between is what makes the
+  // dive read as a dive.
   keeper.classList.remove('pacing');
+  void keeper.offsetWidth;
+
   keeper.classList.add('diving');
   keeper.classList.add(zone.row === 1 ? 'dive-high' : 'dive-low');
   keeper.classList.add(['dive-left', 'dive-center', 'dive-right'][zone.col]);
   keeper.style.left = `${paceToKeeperLeft(zone.col)}%`;
+}
+
+// Stand back up, on the spot the keeper left. Because the pace clock is
+// frozen while the ball is live, that spot is still under it --- so the
+// handover back to pacing has nothing to jump over.
+function renderKeeperRecover() {
+  keeper.classList.remove(...DIVE_CLASSES, 'saved');
+  keeper.style.left = `${paceToKeeperLeft(pace)}%`;
 }
 
 function resetBall() {
@@ -124,14 +140,20 @@ function flyBall(outcome: ShotOutcome, zone: Zone, keeperZone: Zone) {
 }
 
 function markPip(index: number, outcome: ShotOutcome) {
-  (scoreboard.children[index] as HTMLDivElement).classList.add(outcome);
+  (scoreboard.children[index] as HTMLDivElement).classList.add(`pip--${outcome}`);
 }
 
 /* --- Loop --------------------------------------------------------------- */
 
 function frame(now: number) {
+  const delta = lastFrame === 0 ? 0 : now - lastFrame;
+  lastFrame = now;
+
   if (phase === 'aiming' || phase === 'charging') {
-    pace = pacePosition(now, PACE_CYCLE_MS);
+    // The pace clock only advances while the striker is on the ball, so the
+    // keeper resumes its walk exactly where the dive interrupted it.
+    paceClock += delta;
+    pace = pacePosition(paceClock, PACE_CYCLE_MS);
     renderKeeperPacing(pace);
   }
 
@@ -171,7 +193,7 @@ function resolveTurn(power: number, struckAt: number) {
   // The keeper dives to where it will be when the ball arrives, not where it
   // stood when it was struck --- so the striker has to lead it, and a weak
   // shot gives it further to travel.
-  const projected = pacePosition(struckAt + keeperLeadMs(power), PACE_CYCLE_MS);
+  const projected = pacePosition(paceClock + keeperLeadMs(power), PACE_CYCLE_MS);
 
   const zone = aim;
   const keeperZone = chooseKeeperZone(history, paceColumn(projected));
@@ -195,12 +217,15 @@ function resolveTurn(power: number, struckAt: number) {
     goal.classList.remove('scored');
     powerMarker.style.bottom = '0%';
     resetBall();
+    renderKeeperRecover();
 
-    if (shotsTaken >= TOTAL_SHOTS) {
-      showEndScreen();
-    } else {
-      phase = 'aiming';
-    }
+    window.setTimeout(() => {
+      if (shotsTaken >= TOTAL_SHOTS) {
+        showEndScreen();
+      } else {
+        phase = 'aiming';
+      }
+    }, RECOVER_MS);
   }, REVEAL_MS);
 }
 
@@ -226,6 +251,7 @@ function restart() {
   for (const pip of Array.from(scoreboard.children)) pip.className = 'pip';
   powerMarker.style.bottom = '0%';
   resetBall();
+  renderKeeperRecover();
   endScreen.classList.add('hidden');
   phase = 'aiming';
 }
