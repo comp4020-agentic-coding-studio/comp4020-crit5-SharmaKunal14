@@ -1,5 +1,10 @@
 // Pure game logic for the penalty shootout: no DOM, no timers, no randomness.
 // Kept separate from main.ts so the core rules can be unit tested directly.
+//
+// The governing idea is that the keeper is never *placed* anywhere. It has a
+// position, a top speed, and however long the ball is in the air --- and it
+// gets wherever those three allow. A save is then a consequence of the
+// geometry rather than a verdict handed down before the ball moves.
 
 export type Column = 0 | 1 | 2; // left, center, right
 export type Row = 0 | 1; // low, high
@@ -13,40 +18,39 @@ export type ShotQuality = 'weak' | 'good' | 'over';
 
 export type ShotOutcome = 'goal' | 'save' | 'miss';
 
-export function zonesEqual(a: Zone, b: Zone): boolean {
-  return a.col === b.col && a.row === b.row;
-}
+// How quickly the keeper can travel along its line, in columns per second.
+// The pacing walk peaks at about 2.4 columns/sec, so a dive being a shade
+// slower than a hurried sidestep is deliberate: you can out-run it, but only
+// by striking the ball hard enough.
+export const KEEPER_SPEED = 2.45;
 
-function isAdjacentColumn(a: Zone, b: Zone): boolean {
-  return a.row === b.row && Math.abs(a.col - b.col) === 1;
+export const FASTEST_FLIGHT_MS = 340;
+export const SLOWEST_FLIGHT_MS = 820;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 // The power meter oscillates 0-100; the value at release decides shot quality.
-// The good band is deliberately wide: the skill this game asks for is reading
-// the keeper, not hitting a 200ms window blind.
 export function shotQuality(power: number): ShotQuality {
   if (power > 95) return 'over';
   if (power < 22) return 'weak';
   return 'good';
 }
 
-// The rule under test: given where the striker aimed, how hard they struck it,
-// and which zone the keeper committed to, what happens?
-export function resolveShot(zone: Zone, power: number, keeperZone: Zone): ShotOutcome {
-  const quality = shotQuality(power);
-
-  if (quality === 'over') return 'miss';
-
-  if (zonesEqual(zone, keeperZone)) return 'save';
-
-  // A weak shot is slow enough that the keeper can also smother the next zone over.
-  if (quality === 'weak' && isAdjacentColumn(zone, keeperZone)) return 'save';
-
-  return 'goal';
+// How long the ball is in the air. This is the only thing power really buys
+// you: time the keeper doesn't get.
+export function flightMs(power: number): number {
+  const t = clamp(power, 0, 100) / 100;
+  return SLOWEST_FLIGHT_MS - (SLOWEST_FLIGHT_MS - FASTEST_FLIGHT_MS) * t;
 }
 
-// A column the striker has leaned on hard enough for the keeper to notice:
-// clearly ahead of the others, not merely first past the post.
+// Ground the keeper can cover while the ball travels, in columns.
+export function keeperReach(flight: number, speed = KEEPER_SPEED): number {
+  return (flight / 1000) * speed;
+}
+
+// A column the striker has leaned on hard enough for the keeper to notice.
 export function favouriteColumn(history: Zone[]): Column | null {
   if (history.length < 2) return null;
 
@@ -65,17 +69,40 @@ export function favouriteRow(history: Zone[]): Row {
   return high * 2 > history.length ? 1 : 0;
 }
 
-// Where the keeper commits when the ball is struck.
-//
-// It dives to wherever it is standing --- which the striker can see, because
-// the keeper paces the line while they aim --- until they lean on one column
-// hard enough for it to start camping there instead. Reading the pace is the
-// first mechanic; noticing the keeper has learned your habit is the second.
-export function chooseKeeperZone(history: Zone[], paceColumn: Column): Zone {
-  return {
-    col: favouriteColumn(history) ?? paceColumn,
-    row: favouriteRow(history),
-  };
+// Where the keeper *wants* to be. A read, not an outcome --- it may be
+// nowhere near able to get there.
+export function keeperGuess(history: Zone[], driftTo: number): number {
+  return favouriteColumn(history) ?? driftTo;
+}
+
+// Where it actually ends up: it sets off from `from` toward `guess` and gets
+// as far as `reach` allows. This is what stops the keeper materialising at the
+// far post: wanting to be there and being able to reach it are different.
+export function keeperCommit(from: number, guess: number, reach: number): number {
+  return clamp(from + clamp(guess - from, -reach, reach), 0, 2);
+}
+
+// How wide a net the keeper's body casts, in columns. A slow ball lets it
+// smother far more than a dead hand does; guessing the wrong height leaves it
+// only whatever it can stick out on the way past.
+export function saveRadius(quality: ShotQuality, rowMatches: boolean): number {
+  const base = quality === 'weak' ? 0.95 : 0.58;
+  return rowMatches ? base : base * 0.42;
+}
+
+// The rule under test. Note what it takes: the keeper's *actual* position, not
+// a zone it was assigned.
+export function resolveShot(
+  zone: Zone,
+  power: number,
+  keeperPosition: number,
+  keeperRow: Row
+): ShotOutcome {
+  const quality = shotQuality(power);
+  if (quality === 'over') return 'miss';
+
+  const radius = saveRadius(quality, keeperRow === zone.row);
+  return Math.abs(keeperPosition - zone.col) <= radius ? 'save' : 'goal';
 }
 
 // The keeper's continuous position along the goal line, in column units
@@ -85,16 +112,6 @@ export function pacePosition(elapsedMs: number, cycleMs: number): number {
   return 1 + Math.sin(t * Math.PI * 2);
 }
 
-// How far ahead of the strike the keeper gets to read the ball. This is where
-// the two mechanics meet: a limp shot hangs in the air long enough for the
-// keeper to travel to it, a fierce one gives it barely any time at all. So the
-// striker isn't picking a corner and a power independently --- the power
-// decides how much the corner has to be led.
-export function keeperLeadMs(power: number, baseMs = 240, spanMs = 420): number {
-  const clamped = Math.min(100, Math.max(0, power));
-  return baseMs + (1 - clamped / 100) * spanMs;
-}
-
 export function paceColumn(position: number): Column {
-  return Math.min(2, Math.max(0, Math.round(position))) as Column;
+  return clamp(Math.round(position), 0, 2) as Column;
 }

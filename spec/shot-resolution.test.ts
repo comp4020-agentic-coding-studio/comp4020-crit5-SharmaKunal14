@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  chooseKeeperZone,
-  keeperLeadMs,
+  favouriteRow,
+  flightMs,
+  keeperCommit,
+  keeperGuess,
+  keeperReach,
   paceColumn,
   pacePosition,
   resolveShot,
@@ -9,76 +12,104 @@ import {
 } from '../game-logic';
 
 // The one rule this week's spec asks to see under a focused automated test:
-// aim + release-power + keeper commitment must combine into goal/save/miss
-// exactly as the brief demands the game be "lost, and end somewhere."
+// aim + release power + where the keeper can physically get to must combine
+// into goal/save/miss, and the game must be losable by a wrong move.
 
-const left: Zone = { col: 0, row: 0 };
-const center: Zone = { col: 1, row: 0 };
-const right: Zone = { col: 2, row: 0 };
+const leftLow: Zone = { col: 0, row: 0 };
+const centerLow: Zone = { col: 1, row: 0 };
+const rightLow: Zone = { col: 2, row: 0 };
 const rightHigh: Zone = { col: 2, row: 1 };
 
 describe('resolveShot', () => {
-  it('is a goal when the shot is well struck and away from the keeper', () => {
-    expect(resolveShot(right, 60, left)).toBe('goal');
+  it('is a goal when the keeper ends up nowhere near the ball', () => {
+    expect(resolveShot(rightLow, 70, 0.1, 0)).toBe('goal');
   });
 
-  it('is a save when the keeper commits to the exact zone struck', () => {
-    expect(resolveShot(center, 60, center)).toBe('save');
+  it('is a save when the keeper gets to the ball', () => {
+    expect(resolveShot(centerLow, 70, 1.0, 0)).toBe('save');
   });
 
-  it('is a save when a weak shot lands next to the keeper, not just on them', () => {
-    expect(resolveShot(center, 15, left)).toBe('save');
+  it('is a miss on release power over the top, wherever the keeper is', () => {
+    expect(resolveShot(rightLow, 98, 0.0, 0)).toBe('miss');
   });
 
-  it('beats an adjacent keeper when the shot is well struck, not weak', () => {
-    expect(resolveShot(center, 60, left)).toBe('goal');
+  it('lets a well struck ball past a keeper that is merely close', () => {
+    expect(resolveShot(rightLow, 70, 1.3, 0)).toBe('goal');
   });
 
-  it('is a miss on release power over the top, regardless of the keeper', () => {
-    expect(resolveShot(right, 98, left)).toBe('miss');
+  it('smothers that same gap when the ball is struck weakly', () => {
+    expect(resolveShot(rightLow, 15, 1.3, 0)).toBe('save');
   });
 
-  it('separates the rows: the same column at a different height beats the keeper', () => {
-    expect(resolveShot(rightHigh, 60, right)).toBe('goal');
+  it('mostly beats a keeper that guessed the wrong height', () => {
+    expect(resolveShot(rightHigh, 70, 1.7, 0)).toBe('goal');
+  });
+
+  it('still concedes a save to a wrong-height keeper the ball is hit straight at', () => {
+    expect(resolveShot(rightHigh, 70, 2.0, 0)).toBe('save');
   });
 });
 
-describe('chooseKeeperZone', () => {
-  it('dives where it is standing while the striker has no habit yet', () => {
-    expect(chooseKeeperZone([], 2)).toEqual(right);
-    expect(chooseKeeperZone([left], 2)).toEqual(right);
+// This is the bug that prompted the rewrite, pinned so it cannot come back:
+// the keeper used to be *assigned* the column it wanted, so it could appear at
+// the far post it had no way of reaching.
+describe('the keeper cannot cover ground it has no time for', () => {
+  it('does not reach the far post against a firm shot, however much it wants to', () => {
+    const power = 90;
+    const atRightPost = 2;
+    const wantsLeftPost = 0;
+
+    const reached = keeperCommit(atRightPost, wantsLeftPost, keeperReach(flightMs(power)));
+
+    expect(reached).toBeGreaterThan(1);
+    expect(resolveShot(leftLow, power, reached, 0)).toBe('goal');
   });
 
-  it('camps the column the striker has leaned on, ignoring where it stood', () => {
-    expect(chooseKeeperZone([left, left, left], 2)).toEqual(left);
+  it('does reach it when the striker gives it the time', () => {
+    const power = 24; // barely out of the weak band, so a long, slow ball
+    const reached = keeperCommit(2, 0, keeperReach(flightMs(power)));
+
+    expect(reached).toBeLessThan(1);
   });
 
-  it('keeps reading the pace while no column is clearly favoured', () => {
-    expect(chooseKeeperZone([left, right], 1)).toEqual(center);
+  it('never travels further than its reach in either direction', () => {
+    for (const from of [0, 0.5, 1, 1.5, 2]) {
+      for (const guess of [0, 1, 2]) {
+        const reach = 0.4;
+        expect(Math.abs(keeperCommit(from, guess, reach) - from)).toBeLessThanOrEqual(reach + 1e-9);
+      }
+    }
   });
 
-  it('punishes a repeated corner from the shot after it', () => {
-    expect(chooseKeeperZone([right, right], 0)).toEqual(right);
+  it('stays between the posts', () => {
+    expect(keeperCommit(0, -5, 3)).toBe(0);
+    expect(keeperCommit(2, 9, 3)).toBe(2);
+  });
+});
+
+describe('flight time', () => {
+  it('is shorter the harder the ball is struck', () => {
+    expect(flightMs(95)).toBeLessThan(flightMs(30));
+  });
+
+  it('buys the keeper less ground the harder the ball is struck', () => {
+    expect(keeperReach(flightMs(95))).toBeLessThan(keeperReach(flightMs(30)));
+  });
+});
+
+describe('what the keeper reads', () => {
+  it('follows its own walk while the striker has no habit', () => {
+    expect(keeperGuess([], 1.7)).toBe(1.7);
+    expect(keeperGuess([leftLow], 1.7)).toBe(1.7);
+  });
+
+  it('lunges for the column the striker keeps using', () => {
+    expect(keeperGuess([leftLow, leftLow], 1.7)).toBe(0);
   });
 
   it('follows the striker upstairs once most shots have gone high', () => {
-    const high: Zone[] = [
-      { col: 0, row: 1 },
-      { col: 1, row: 1 },
-    ];
-    expect(chooseKeeperZone(high, 2).row).toBe(1);
-  });
-});
-
-describe('keeperLeadMs', () => {
-  it('gives the keeper more time the weaker the shot', () => {
-    expect(keeperLeadMs(20)).toBeGreaterThan(keeperLeadMs(90));
-  });
-
-  it('never lets a shot arrive before the keeper can react at all', () => {
-    for (const power of [0, 25, 50, 75, 100]) {
-      expect(keeperLeadMs(power)).toBeGreaterThanOrEqual(240);
-    }
+    expect(favouriteRow([{ col: 0, row: 1 }, { col: 1, row: 1 }])).toBe(1);
+    expect(favouriteRow([])).toBe(0);
   });
 });
 
@@ -91,8 +122,10 @@ describe('pacing', () => {
     }
   });
 
-  it('reaches both posts across a cycle, so every column is readable', () => {
-    const samples = Array.from({ length: 200 }, (_, i) => paceColumn(pacePosition(i * 13, 2600)));
-    expect(new Set(samples)).toEqual(new Set([0, 1, 2]));
+  it('reaches every column across a cycle, so all three are readable', () => {
+    const seen = new Set(
+      Array.from({ length: 200 }, (_, i) => paceColumn(pacePosition(i * 13, 2600)))
+    );
+    expect(seen).toEqual(new Set([0, 1, 2]));
   });
 });

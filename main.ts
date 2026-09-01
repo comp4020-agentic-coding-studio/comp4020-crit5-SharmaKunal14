@@ -1,7 +1,9 @@
 import {
-  chooseKeeperZone,
-  keeperLeadMs,
-  paceColumn,
+  favouriteRow,
+  flightMs,
+  keeperCommit,
+  keeperGuess,
+  keeperReach,
   pacePosition,
   resolveShot,
   type Column,
@@ -13,8 +15,12 @@ import {
 const TOTAL_SHOTS = 5;
 const POWER_CYCLE_MS = 1500;
 const PACE_CYCLE_MS = 2600;
-const REVEAL_MS = 1150;
-const RECOVER_MS = 340;
+const SETTLE_MS = 900;
+const RECOVER_MS = 360;
+// A keeper commits as the ball is struck; it can't stop dead, but nor does it
+// keep strolling for the whole flight. This is how much of its walk carries
+// through into the dive.
+const MOMENTUM_MS = 160;
 
 const pitch = document.getElementById('pitch') as HTMLDivElement;
 const goal = document.getElementById('goal') as HTMLDivElement;
@@ -60,54 +66,64 @@ function pointToZone(clientX: number, clientY: number): Zone {
   return { col, row };
 }
 
-// Where a zone sits in pitch percentages, for the ball's flight.
-function zoneToPitchPercent(zone: Zone) {
-  const left = 12 + ((zone.col + 0.5) / 3) * 76;
-  const top = zone.row === 1 ? 5 + 25 * 0.26 : 5 + 25 * 0.74;
-  return { left, top };
+// A continuous column position (0..2) as a percentage across the pitch.
+function columnToPitchLeft(position: number): number {
+  return 12 + ((position + 0.5) / 3) * 76;
 }
 
-// Keeper left offset, in goal-relative percentages, for a continuous
-// pace position in column units (0..2).
-function paceToKeeperLeft(position: number): number {
+function rowToPitchTop(row: Row): number {
+  return row === 1 ? 5 + 25 * 0.26 : 5 + 25 * 0.74;
+}
+
+// The same position, in the goal's own coordinates, for the keeper.
+function columnToKeeperLeft(position: number): number {
   const keeperWidth = 24;
   return ((position + 0.5) / 3) * 100 - keeperWidth / 2;
 }
 
 /* --- Rendering ---------------------------------------------------------- */
 
-const DIVE_CLASSES = ['dive-low', 'dive-high', 'dive-left', 'dive-center', 'dive-right'];
+function setFlight(el: HTMLElement, ms: number) {
+  el.style.setProperty('--flight', `${ms}ms`);
+}
 
 function renderKeeperPacing(position: number) {
   keeper.classList.add('pacing');
-  keeper.style.left = `${paceToKeeperLeft(position)}%`;
+  keeper.style.left = `${columnToKeeperLeft(position)}%`;
 }
 
-function renderKeeperDive(zone: Zone) {
-  // `.pacing` carries `transition: none` so the per-frame pacing doesn't
-  // smear. Dropping it and moving the keeper in the same style batch would
-  // give the transition no start value --- the keeper teleports sideways and
-  // only the rotation animates. Flushing layout in between is what makes the
-  // dive read as a dive.
+// The dive is described by where the keeper is going and how long it has to
+// get there --- not by a corner it was assigned. The lean follows the actual
+// travel, so a keeper that barely moves stays nearly upright.
+function renderKeeperDive(from: number, to: number, row: Row, flight: number) {
+  // `.pacing` carries `transition: none` so the per-frame walk doesn't smear.
+  // Dropping it and moving the keeper in the same style batch would leave the
+  // transition with no start value --- the keeper teleports and only the
+  // rotation animates. Flushing layout in between is what makes it a dive.
   keeper.classList.remove('pacing');
   void keeper.offsetWidth;
 
+  setFlight(keeper, flight);
   keeper.classList.add('diving');
-  keeper.classList.add(zone.row === 1 ? 'dive-high' : 'dive-low');
-  keeper.classList.add(['dive-left', 'dive-center', 'dive-right'][zone.col]);
-  keeper.style.left = `${paceToKeeperLeft(zone.col)}%`;
+  keeper.style.left = `${columnToKeeperLeft(to)}%`;
+
+  const lean = Math.max(-34, Math.min(34, (to - from) * 30));
+  const lift = row === 1 ? -38 : 4;
+  keeper.style.transform = `translateY(${lift}%) rotate(${lean}deg)`;
 }
 
-// Stand back up, on the spot the keeper left. Because the pace clock is
-// frozen while the ball is live, that spot is still under it --- so the
-// handover back to pacing has nothing to jump over.
+// Stand back up on the spot the keeper left. The pace clock is frozen while
+// the ball is live, so that spot is still under it and the handover back to
+// pacing has nothing to jump over.
 function renderKeeperRecover() {
-  keeper.classList.remove(...DIVE_CLASSES, 'saved');
-  keeper.style.left = `${paceToKeeperLeft(pace)}%`;
+  setFlight(keeper, RECOVER_MS);
+  keeper.classList.remove('diving', 'saved');
+  keeper.style.left = `${columnToKeeperLeft(pace)}%`;
+  keeper.style.transform = '';
 }
 
 function resetBall() {
-  ball.classList.remove('flying');
+  ball.classList.remove('flying', 'deflected');
   ball.style.left = '50%';
   ball.style.top = '';
   ball.style.bottom = '7%';
@@ -116,27 +132,35 @@ function resetBall() {
   void ball.offsetHeight; // flush, so the next flight animates from the spot
 }
 
-function flyBall(outcome: ShotOutcome, zone: Zone, keeperZone: Zone) {
+// The ball travels for exactly as long as its power says it should, so what
+// you see is the same number the keeper is racing against.
+function flyBall(outcome: ShotOutcome, zone: Zone, flight: number) {
+  setFlight(ball, flight);
   ball.classList.add('flying');
   ball.style.bottom = '';
+  ball.style.left = `${columnToPitchLeft(zone.col)}%`;
 
   if (outcome === 'miss') {
-    const { left } = zoneToPitchPercent(zone);
-    ball.style.left = `${left}%`;
     ball.style.top = '-14%';
-    ball.style.opacity = '0';
     ball.style.transform = 'translate(-50%, -50%) scale(0.5)';
+    ball.style.opacity = '0';
     return;
   }
 
-  // On a save the ball stops where the keeper actually got to, so the
-  // player sees who won the duel rather than guessing.
-  const target = outcome === 'save' ? keeperZone : zone;
-  const { left, top } = zoneToPitchPercent(target);
-  ball.style.left = `${left}%`;
-  ball.style.top = `${top}%`;
-  ball.style.transform =
-    outcome === 'save' ? 'translate(-50%, -50%) scale(0.72)' : 'translate(-50%, -50%) scale(0.62)';
+  ball.style.top = `${rowToPitchTop(zone.row)}%`;
+  ball.style.transform = 'translate(-50%, -50%) scale(0.62)';
+}
+
+// A save is a deflection, not a catch: the ball has already arrived, so it
+// leaves again off the keeper rather than stopping dead.
+function deflectBall(zone: Zone, keeperPosition: number) {
+  const away = keeperPosition <= zone.col ? 1 : -1;
+  setFlight(ball, 260);
+  ball.classList.add('deflected');
+  ball.style.left = `${columnToPitchLeft(zone.col + away * 0.85)}%`;
+  ball.style.top = `${rowToPitchTop(0) + 9}%`;
+  ball.style.transform = 'translate(-50%, -50%) scale(0.5)';
+  ball.style.opacity = '0.55';
 }
 
 function markPip(index: number, outcome: ShotOutcome) {
@@ -184,49 +208,61 @@ function releaseCharge(now: number) {
   const power = currentPower(now);
   powerMeter.classList.remove('charging');
   reticle.classList.remove('armed');
-  resolveTurn(power, now);
+  resolveTurn(power);
 }
 
-function resolveTurn(power: number, struckAt: number) {
+function resolveTurn(power: number) {
   phase = 'resolving';
 
-  // The keeper dives to where it will be when the ball arrives, not where it
-  // stood when it was struck --- so the striker has to lead it, and a weak
-  // shot gives it further to travel.
-  const projected = pacePosition(paceClock + keeperLeadMs(power), PACE_CYCLE_MS);
-
   const zone = aim;
-  const keeperZone = chooseKeeperZone(history, paceColumn(projected));
-  const outcome = resolveShot(zone, power, keeperZone);
+  const flight = flightMs(power);
 
-  renderKeeperDive(keeperZone);
-  flyBall(outcome, zone, keeperZone);
+  // Where the keeper is, where it would like to be, and how far it can
+  // actually get in the time the ball gives it.
+  const from = pace;
+  const drift = pacePosition(paceClock + Math.min(flight, MOMENTUM_MS), PACE_CYCLE_MS);
+  const guess = keeperGuess(history, drift);
+  const reached = keeperCommit(from, guess, keeperReach(flight));
+  const keeperRow = favouriteRow(history);
 
-  if (outcome === 'goal') {
-    goals += 1;
-    goal.classList.add('scored');
-  } else if (outcome === 'save') {
-    keeper.classList.add('saved');
-  }
+  const outcome = resolveShot(zone, power, reached, keeperRow);
 
-  markPip(shotsTaken, outcome);
+  renderKeeperDive(from, reached, keeperRow, flight);
+  flyBall(outcome, zone, flight);
+
   history.push(zone);
   shotsTaken += 1;
+  const shotIndex = shotsTaken - 1;
 
+  // Everything that reacts to the result waits for the ball to actually get
+  // there. Scoring it at the moment of the strike is what made the old build
+  // feel like the verdict came before the shot.
   window.setTimeout(() => {
-    goal.classList.remove('scored');
-    powerMarker.style.bottom = '0%';
-    resetBall();
-    renderKeeperRecover();
+    markPip(shotIndex, outcome);
+
+    if (outcome === 'goal') {
+      goals += 1;
+      goal.classList.add('scored');
+    } else if (outcome === 'save') {
+      keeper.classList.add('saved');
+      deflectBall(zone, reached);
+    }
 
     window.setTimeout(() => {
-      if (shotsTaken >= TOTAL_SHOTS) {
-        showEndScreen();
-      } else {
-        phase = 'aiming';
-      }
-    }, RECOVER_MS);
-  }, REVEAL_MS);
+      goal.classList.remove('scored');
+      powerMarker.style.bottom = '0%';
+      resetBall();
+      renderKeeperRecover();
+
+      window.setTimeout(() => {
+        if (shotsTaken >= TOTAL_SHOTS) {
+          showEndScreen();
+        } else {
+          phase = 'aiming';
+        }
+      }, RECOVER_MS);
+    }, SETTLE_MS);
+  }, flight);
 }
 
 function showEndScreen() {

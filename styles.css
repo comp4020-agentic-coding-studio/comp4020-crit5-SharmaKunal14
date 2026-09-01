@@ -119,10 +119,11 @@ main {
   /* The dive easing lives on the base class, not on `.diving`: the element
      needs a live transition *before* its position changes, or there is no
      start value to animate from. `.pacing` switches it off for the
-     frame-by-frame walk. */
+     frame-by-frame walk. The duration is set per shot from the ball's actual
+     flight time, so the keeper and the ball are always racing the same clock. */
   transition:
-    left 0.34s cubic-bezier(0.22, 0.68, 0.24, 1),
-    transform 0.34s cubic-bezier(0.22, 0.68, 0.24, 1);
+    left var(--flight, 340ms) cubic-bezier(0.22, 0.68, 0.24, 1),
+    transform var(--flight, 340ms) cubic-bezier(0.22, 0.68, 0.24, 1);
 }
 
 .keeper-body {
@@ -143,7 +144,7 @@ main {
   height: 16%;
   background: #ffd95e;
   border-radius: 0.2rem;
-  transition: transform 0.34s cubic-bezier(0.22, 0.68, 0.24, 1);
+  transition: transform var(--flight, 340ms) cubic-bezier(0.22, 0.68, 0.24, 1);
 }
 
 .keeper-body::before {
@@ -160,29 +161,9 @@ main {
   transition: none;
 }
 
-/* Low dive: keeper drops and leans toward the post. Kept shallow enough that
-   the pose stays inside the goalmouth --- a steeper lean read as the keeper
-   sliding out of the frame entirely. */
-.keeper.dive-low.dive-left {
-  transform: translateY(4%) rotate(-26deg);
-}
-.keeper.dive-low.dive-right {
-  transform: translateY(4%) rotate(26deg);
-}
-.keeper.dive-low.dive-center {
-  transform: translateY(4%) scaleX(1.1);
-}
-
-/* High dive: keeper leaps, so the row the striker picked actually matters. */
-.keeper.dive-high.dive-left {
-  transform: translateY(-38%) rotate(-34deg);
-}
-.keeper.dive-high.dive-right {
-  transform: translateY(-38%) rotate(34deg);
-}
-.keeper.dive-high.dive-center {
-  transform: translateY(-38%) scaleY(1.08);
-}
+/* The dive pose itself is written inline per shot: the lean follows how far
+   the keeper is actually travelling, and the lift follows the height it
+   committed to. A keeper that can only shuffle a few inches stays upright. */
 
 .keeper.diving .keeper-body::before {
   transform: rotate(-38deg) scaleX(1.5);
@@ -258,13 +239,24 @@ main {
   z-index: 2;
 }
 
+/* A struck ball barely decelerates, so this is close to linear --- the easing
+   is only enough to take the mechanical edge off. Duration comes from the
+   shot's own flight time. */
 .ball.flying {
   transition:
-    left 0.34s cubic-bezier(0.25, 0.6, 0.4, 1),
-    top 0.34s cubic-bezier(0.25, 0.6, 0.4, 1),
-    bottom 0.34s cubic-bezier(0.25, 0.6, 0.4, 1),
-    transform 0.34s ease,
-    opacity 0.3s ease 0.25s;
+    left var(--flight, 340ms) cubic-bezier(0.32, 0.72, 0.55, 1),
+    top var(--flight, 340ms) cubic-bezier(0.32, 0.72, 0.55, 1),
+    bottom var(--flight, 340ms) cubic-bezier(0.32, 0.72, 0.55, 1),
+    transform var(--flight, 340ms) linear,
+    opacity var(--flight, 340ms) ease;
+}
+
+.ball.deflected {
+  transition:
+    left var(--flight, 260ms) cubic-bezier(0.2, 0.7, 0.4, 1),
+    top var(--flight, 260ms) cubic-bezier(0.2, 0.7, 0.4, 1),
+    transform var(--flight, 260ms) ease-out,
+    opacity var(--flight, 260ms) ease-out;
 }
 
 /* --- Power -------------------------------------------------------------- */
