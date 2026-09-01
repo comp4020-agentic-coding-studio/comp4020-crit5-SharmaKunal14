@@ -2,24 +2,27 @@
 
 **What was the breakthrough that moved the work forward?**
 
-The breakthrough was rejecting my own first idea before building it. "Hover to
-aim, press spacebar for power" is a fine skeleton, but taken literally it's two
-independent one-shot inputs — obvious in ten seconds and forgotten by twenty.
-Turning spacebar into hold-to-charge/release-to-fire didn't add a new input;
-it made the existing one carry a timing skill, and it gave the game a genuine
-way to lose that isn't just "the keeper happened to guess right" — over-hold
-and you beat yourself. That reframing is what made the five-minute test
-plausible at all, and it came from being willing to critique the brief I'd set
-myself rather than defending it.
+The breakthrough came from the version that didn't work. My first build did
+exactly what I'd specified — hover to aim, hold and release for power — and
+playing it was miserable. I took aim, struck it, and the pip went red with no
+way to know whether I'd been beaten or robbed. The keeper only appeared in its
+dive at the moment the ball left, so where it stood was never something I
+could use. The fix I reached for first was to make the numbers kinder. The fix
+that actually worked was to make the keeper *visible*: it paces the line while
+you aim, and it commits to where it will be rather than where it was, with the
+lead time set by how hard you struck it. That last part is what tied the two
+inputs together — the corner and the power stopped being separate decisions.
+The breakthrough was recognising that "this feels unfair" was a design report,
+not a difficulty complaint.
 
 **What did this work change about who I want to be as a software developer?**
 
-It sharpened how much I trust a green check suite on its own. Everything —
-typecheck, build, all 25 tests — passed on the first full build, and the game
-still had a visible bug: a reticle circle sitting in the corner before any
-input, because nothing in the test suite exercised "before the user has done
-anything." Only actually driving the built page with a headless browser and
-looking at the screenshot surfaced it. I want to keep treating "the tests are
-green" and "I watched it run" as two separate, both-required steps, not as the
-second following automatically from the first — especially for anything
-judged by feel rather than by assertion.
+It put a hard edge on how much a green suite is worth. Every check passed on a
+build that was genuinely bad to play — and the tests weren't wrong, they were
+answering a different question than the one that mattered. What I want to
+carry is the habit of pairing them: assert the rule, then go and use the
+thing, and treat the second as non-optional rather than as confirmation. I
+also want to keep the move I made at the end — instead of claiming the balance
+felt right, I ran a careless player and a careful one through the real page
+and compared their scores. Turning a judgement I'd otherwise have asserted
+into something observable is the part of this week I'd want to repeat.
