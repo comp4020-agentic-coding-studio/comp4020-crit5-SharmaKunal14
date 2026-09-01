@@ -48,6 +48,7 @@ function updateReticle(clientX: number, clientY: number) {
   const y = Math.min(Math.max(clientY - rect.top, 0), rect.height);
   reticle.style.left = `${x}px`;
   reticle.style.top = `${y}px`;
+  reticle.classList.add('visible');
 }
 
 function zoneToPercent(zone: Zone) {
