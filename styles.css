@@ -1,7 +1,5 @@
 :root {
   color-scheme: dark;
-  --red: #f2555a;
-  --blue: #4d94ff;
 }
 
 body {
@@ -208,32 +206,14 @@ main {
   opacity: 1;
 }
 
-/* The sight wears the colour of whoever is on the ball --- the only cue
-   needed to say whose turn it is, and it is where the striker is already
-   looking. */
-.reticle.player-red {
-  border-color: var(--red);
-}
-.reticle.player-red::after {
-  background: var(--red);
-}
-.reticle.player-blue {
-  border-color: var(--blue);
-}
-.reticle.player-blue::after {
-  background: var(--blue);
-}
-
 .reticle.armed {
+  border-color: #ffd95e;
+  box-shadow: 0 0 0.7rem rgba(255, 217, 94, 0.8);
   animation: reticle-pulse 0.55s ease-in-out infinite;
 }
 
-.reticle.armed.player-red {
-  box-shadow: 0 0 0.8rem rgba(242, 85, 90, 0.95);
-}
-
-.reticle.armed.player-blue {
-  box-shadow: 0 0 0.8rem rgba(77, 148, 255, 0.95);
+.reticle.armed::after {
+  background: #ffd95e;
 }
 
 @keyframes reticle-pulse {
@@ -356,173 +336,51 @@ main {
 /* --- Scoreboard --------------------------------------------------------- */
 
 /* Kept clear of the goalmouth: over the frame and net, a filled pip was
-   almost impossible to pick out. The panel gives every pip the same dark
-   ground, so a filled one reads the same over any stripe of grass. */
+   almost impossible to pick out. The pill gives every pip the same dark
+   ground, so a green one reads the same over any stripe of grass. */
 .scoreboard {
   position: absolute;
   left: 4%;
-  bottom: 4.5%;
+  bottom: 5%;
   z-index: 4;
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
+  align-items: center;
+  gap: 0.55rem;
   padding: 0.45rem 0.6rem;
-  border-radius: 0.7rem;
-  background: rgba(6, 26, 8, 0.6);
+  border-radius: 999px;
+  background: rgba(6, 26, 8, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  /* Sudden death has no upper bound, so the rows have to be able to wrap
-     rather than push the panel off the pitch. */
-  max-width: 62%;
 }
 
-.score-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  opacity: 0.45;
-  transition: opacity 0.2s ease;
-}
-
-/* Whose turn it is, said by brightness rather than by a caption. */
-.score-row.is-shooting {
-  opacity: 1;
-}
-
-.score-name {
-  min-width: 4.5rem;
-  max-width: 6rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.score-row--red .score-name {
-  color: var(--red);
-}
-
-.score-row--blue .score-name {
-  color: var(--blue);
-}
-
-.pips {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.pip {
+.scoreboard .pip {
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: 0.62rem;
-  height: 0.62rem;
+  width: 0.7rem;
+  height: 0.7rem;
   border-radius: 50%;
   background: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.45);
   transition: background 0.25s ease, border-color 0.25s ease;
 }
 
-/* Namespaced deliberately. A scored pip was once marked `.goal`, which is the
-   goalmouth's own class --- it inherited `position: absolute; top: 5%;
-   left: 12%; width: 76%` and jumped out of the row. Modifier classes never
-   share a namespace with element classes again; the sensor in
-   spec/component-classes.test.ts holds that line. */
-.score-row--red .pip--scored {
-  background: var(--red);
-  border-color: var(--red);
+/* Namespaced deliberately. These were `.goal` / `.save` / `.miss`, and `.goal`
+   is the goalmouth's own class --- a scored pip was picking up the goalmouth's
+   `position: absolute; top: 5%; left: 12%; width: 76%` and jumping out of the
+   row. Modifier classes on a component never share a namespace with element
+   classes again. */
+.scoreboard .pip--goal {
+  background: #4ade80;
+  border-color: #4ade80;
 }
 
-.score-row--blue .pip--scored {
-  background: var(--blue);
-  border-color: var(--blue);
+.scoreboard .pip--save {
+  background: #facc15;
+  border-color: #facc15;
 }
 
-/* A kick taken and not scored. It has to differ from an untaken kick, not
-   just be fainter than a scored one --- a dim ring next to an empty ring is
-   indistinguishable, so this one is filled grey. */
-.pip--spent {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.22);
-}
-
-/* --- Name entry ---------------------------------------------------------- */
-
-.name-screen {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.9rem;
-  padding: 1.5rem;
-  background: rgba(4, 20, 4, 0.9);
-}
-
-.name-screen.hidden {
-  display: none;
-}
-
-.name-input {
-  width: min(70%, 15rem);
-  padding: 0.65rem 0.9rem;
-  font: inherit;
-  font-size: 1rem;
-  font-weight: 700;
-  text-align: center;
-  color: #f4fff4;
-  background: rgba(255, 255, 255, 0.06);
-  border: 2px solid;
-  border-radius: 0.55rem;
-  outline: none;
-}
-
-.name-input--red {
-  border-color: var(--red);
-  caret-color: var(--red);
-}
-
-.name-input--blue {
-  border-color: var(--blue);
-  caret-color: var(--blue);
-}
-
-.name-input:focus {
-  background: rgba(255, 255, 255, 0.13);
-}
-
-/* A play triangle, drawn rather than written. */
-.start-button {
-  margin-top: 0.4rem;
-  width: 3.2rem;
-  height: 3.2rem;
-  border-radius: 50%;
-  border: 2.5px solid #f4fff4;
-  background: transparent;
-  cursor: pointer;
-  position: relative;
-  transition: transform 0.15s ease, background 0.15s ease;
-}
-
-.start-button::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 56%;
-  transform: translate(-50%, -50%);
-  border-left: 1.05rem solid #f4fff4;
-  border-top: 0.65rem solid transparent;
-  border-bottom: 0.65rem solid transparent;
-}
-
-.start-button:hover,
-.start-button:focus-visible {
-  transform: scale(1.08);
-  background: rgba(255, 255, 255, 0.12);
+.scoreboard .pip--miss {
+  background: #ef4444;
+  border-color: #ef4444;
 }
 
 /* --- End screen --------------------------------------------------------- */
@@ -548,38 +406,6 @@ main {
   font-size: clamp(2.5rem, 12vw, 4rem);
   font-weight: 800;
   letter-spacing: 0.02em;
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-}
-
-.end-screen .tally .red {
-  color: var(--red);
-}
-
-.end-screen .tally .blue {
-  color: var(--blue);
-}
-
-.end-screen .tally .dash {
-  color: rgba(244, 255, 244, 0.5);
-  font-size: 0.7em;
-}
-
-.end-screen .winner {
-  font-size: clamp(1.1rem, 5vw, 1.6rem);
-  font-weight: 700;
-  max-width: 80%;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-
-.end-screen .winner.red {
-  color: var(--red);
-}
-
-.end-screen .winner.blue {
-  color: var(--blue);
 }
 
 .end-screen .replay {
