@@ -64,6 +64,26 @@ and a keeper already moving.
    was invisible.
    [`c163dc0`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/c163dc0)
 
+5. **The correction that went into the harness rather than the fix.** Playing
+   the reworked build turned up two bugs a green suite could never see. The
+   keeper snapped sideways into its dive instead of diving: `.pacing` carries
+   `transition: none` for the frame-by-frame walk, and dropping that class
+   while moving the keeper in the same style batch leaves the transition with
+   no start value. And a scored pip jumped out of the scoreboard row, because
+   it was marked with `classList.add('goal')` — and `.goal` is the goalmouth's
+   own class, so the pip inherited `position: absolute; top: 5%; left: 12%;
+   width: 76%`.
+
+   The second one is the one worth citing. Renaming the class to `pip--goal`
+   takes ten seconds and teaches nothing. What I added instead was
+   `spec/component-classes.test.ts`: a sensor that fails if any class the app
+   toggles at runtime is also a class that positions an element. I checked it
+   actually bites before trusting it — put the old name back, watched it go
+   red with `expected [ 'goal' ] to deeply equal []`, then took it green. That
+   file is harness, not a contract test: it answers no line of this week's
+   spec, and it comes with me into next week's repo.
+   [`2652d8f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/2652d8f)
+
 ## How I directed, grounded, and corrected the work
 
 I specified the mechanic myself (striker/keeper, hover-aim, spacebar-power)
