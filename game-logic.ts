@@ -19,10 +19,22 @@ export type ShotQuality = 'weak' | 'good' | 'over';
 export type ShotOutcome = 'goal' | 'save' | 'miss';
 
 // How quickly the keeper can travel along its line, in columns per second.
-// The pacing walk peaks at about 2.4 columns/sec, so a dive being a shade
-// slower than a hurried sidestep is deliberate: you can out-run it, but only
-// by striking the ball hard enough.
-export const KEEPER_SPEED = 2.45;
+//
+// This number is load-bearing, and it is not a taste setting. The goal is two
+// columns wide, so the constraint is:
+//
+//   a well struck ball into the far corner must ALWAYS beat it
+//     -> reach < 2 - 0.58   at the fastest good shot   -> S < 1.99
+//   a limp one into the far corner should NOT
+//     -> reach >= 2 - 0.95  at the slowest weak shot   -> S >= 1.47
+//
+// An earlier value of 2.45 sat outside that window and let the keeper cross
+// the entire goal in 816ms, so any shot at half power was caught in the
+// opposite corner --- the ball went one way, the keeper went the other, and
+// it still saved. The pacing walk is slowed to match (see PACE_CYCLE_MS): a
+// keeper that strolls faster than it dives reads as broken even when the
+// arithmetic happens to work out.
+export const KEEPER_SPEED = 1.6;
 
 export const FASTEST_FLIGHT_MS = 340;
 export const SLOWEST_FLIGHT_MS = 820;

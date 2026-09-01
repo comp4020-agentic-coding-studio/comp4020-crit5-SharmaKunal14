@@ -6,6 +6,7 @@ import {
   keeperReach,
   pacePosition,
   resolveShot,
+  shotQuality,
   type Column,
   type Row,
   type ShotOutcome,
@@ -14,8 +15,10 @@ import {
 
 const TOTAL_SHOTS = 5;
 const POWER_CYCLE_MS = 1500;
-const PACE_CYCLE_MS = 2600;
-const SETTLE_MS = 900;
+// Slow enough that the keeper's walk never outpaces its own dive (see
+// KEEPER_SPEED), which also gives the striker time to actually read it.
+const PACE_CYCLE_MS = 3900;
+const SETTLE_MS = 720;
 const RECOVER_MS = 360;
 // A keeper commits as the ball is struck; it can't stop dead, but nor does it
 // keep strolling for the whole flight. This is how much of its walk carries
@@ -122,45 +125,107 @@ function renderKeeperRecover() {
   keeper.style.transform = '';
 }
 
+const BALL_REST_TOP = 88; // percent of pitch height
+let ballOffset = { x: 0, y: 0 };
+
+// Script-driven animation doesn't get the CSS media query for free. The
+// flight *duration* stays --- it is the rule, not decoration, and shortening
+// it would change the game --- but the arc and the flourishes go.
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+function pitchSize() {
+  const rect = pitch.getBoundingClientRect();
+  return { w: rect.width, h: rect.height };
+}
+
+// Pixel offset from the penalty spot to a point given in pitch percentages.
+function offsetTo(leftPct: number, topPct: number) {
+  const { w, h } = pitchSize();
+  return {
+    x: ((leftPct - 50) / 100) * w,
+    y: ((topPct - BALL_REST_TOP) / 100) * h,
+  };
+}
+
+function ballTransform(x: number, y: number, scale: number) {
+  return `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${scale})`;
+}
+
 function resetBall() {
-  ball.classList.remove('flying', 'deflected');
-  ball.style.left = '50%';
-  ball.style.top = '';
-  ball.style.bottom = '7%';
+  for (const animation of ball.getAnimations()) animation.cancel();
+  ballOffset = { x: 0, y: 0 };
   ball.style.opacity = '1';
-  ball.style.transform = 'translate(-50%, 50%)';
-  void ball.offsetHeight; // flush, so the next flight animates from the spot
+  ball.style.transform = ballTransform(0, 0, 1);
+  if (reducedMotion.matches) return;
+  // Placed, rather than teleported back: a short settle reads as the next ball
+  // going down on the spot.
+  ball.animate(
+    [
+      { transform: ballTransform(0, 0, 0.55), opacity: 0 },
+      { transform: ballTransform(0, 0, 1), opacity: 1 },
+    ],
+    { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' }
+  );
 }
 
 // The ball travels for exactly as long as its power says it should, so what
-// you see is the same number the keeper is racing against.
+// you see is the same number the keeper is racing against. The arc and the
+// shrink are what stop it reading as a sprite sliding up the screen: it lifts
+// off the spot, and it recedes as it goes away from you.
 function flyBall(outcome: ShotOutcome, zone: Zone, flight: number) {
-  setFlight(ball, flight);
-  ball.classList.add('flying');
-  ball.style.bottom = '';
-  ball.style.left = `${columnToPitchLeft(zone.col)}%`;
+  for (const animation of ball.getAnimations()) animation.cancel();
 
-  if (outcome === 'miss') {
-    ball.style.top = '-14%';
-    ball.style.transform = 'translate(-50%, -50%) scale(0.5)';
-    ball.style.opacity = '0';
-    return;
-  }
+  const target =
+    outcome === 'miss'
+      ? offsetTo(columnToPitchLeft(zone.col), -12)
+      : offsetTo(columnToPitchLeft(zone.col), rowToPitchTop(zone.row));
 
-  ball.style.top = `${rowToPitchTop(zone.row)}%`;
-  ball.style.transform = 'translate(-50%, -50%) scale(0.62)';
+  // A ball driven along the ground barely lifts; one aimed at the top corner
+  // has to climb, so it carries a longer parabola.
+  const lift = reducedMotion.matches
+    ? 0
+    : Math.abs(target.y) * (zone.row === 1 ? 0.13 : 0.055);
+  const endScale = outcome === 'miss' ? 0.4 : 0.58;
+
+  ballOffset = target;
+  ball.style.opacity = outcome === 'miss' ? '0' : '1';
+  ball.style.transform = ballTransform(target.x, target.y, endScale);
+
+  ball.animate(
+    [
+      { transform: ballTransform(0, 0, 1), opacity: 1, offset: 0 },
+      {
+        transform: ballTransform(target.x * 0.5, target.y * 0.5 - lift, 0.84),
+        opacity: 1,
+        offset: 0.5,
+      },
+      {
+        transform: ballTransform(target.x, target.y, endScale),
+        opacity: outcome === 'miss' ? 0 : 1,
+        offset: 1,
+      },
+    ],
+    { duration: flight, easing: 'cubic-bezier(0.3, 0.64, 0.5, 1)', fill: 'forwards' }
+  );
 }
 
 // A save is a deflection, not a catch: the ball has already arrived, so it
-// leaves again off the keeper rather than stopping dead.
+// leaves again off the keeper rather than stopping dead in mid-air.
 function deflectBall(zone: Zone, keeperPosition: number) {
   const away = keeperPosition <= zone.col ? 1 : -1;
-  setFlight(ball, 260);
-  ball.classList.add('deflected');
-  ball.style.left = `${columnToPitchLeft(zone.col + away * 0.85)}%`;
-  ball.style.top = `${rowToPitchTop(0) + 9}%`;
-  ball.style.transform = 'translate(-50%, -50%) scale(0.5)';
-  ball.style.opacity = '0.55';
+  const from = ballOffset;
+  const to = offsetTo(columnToPitchLeft(zone.col + away * 1.05), rowToPitchTop(0) + 12);
+
+  ball.style.opacity = '0';
+  ball.style.transform = ballTransform(to.x, to.y, 0.46);
+
+  ball.animate(
+    [
+      { transform: ballTransform(from.x, from.y, 0.58), opacity: 1, offset: 0 },
+      { transform: ballTransform(to.x, to.y, 0.46), opacity: 0, offset: 1 },
+    ],
+    { duration: 420, easing: 'cubic-bezier(0.15, 0.8, 0.4, 1)', fill: 'forwards' }
+  );
 }
 
 function markPip(index: number, outcome: ShotOutcome) {
@@ -182,7 +247,14 @@ function frame(now: number) {
   }
 
   if (phase === 'charging') {
-    powerMarker.style.bottom = `${currentPower(now)}%`;
+    const power = currentPower(now);
+    powerMarker.style.bottom = `${power}%`;
+    // The marker wears the colour of the band it is crossing, which is how
+    // the meter explains itself without a word on screen.
+    const zone = shotQuality(power);
+    powerMarker.classList.toggle('zone-weak', zone === 'weak');
+    powerMarker.classList.toggle('zone-good', zone === 'good');
+    powerMarker.classList.toggle('zone-over', zone === 'over');
   }
 
   requestAnimationFrame(frame);

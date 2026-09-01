@@ -65,6 +65,24 @@ describe('the keeper cannot cover ground it has no time for', () => {
     expect(resolveShot(leftLow, power, reached, 0)).toBe('goal');
   });
 
+  // The previous fix passed its tests and still had this hole: it only ever
+  // checked one power value. The far corner has to be safe across the WHOLE
+  // good band, which is what actually constrains KEEPER_SPEED.
+  it('never saves a well struck ball in the far corner, at any good power', () => {
+    for (let power = 22; power <= 95; power += 1) {
+      const reached = keeperCommit(2, 0, keeperReach(flightMs(power)));
+      expect(resolveShot(leftLow, power, reached, 0), `power ${power}`).toBe('goal');
+
+      const mirrored = keeperCommit(0, 2, keeperReach(flightMs(power)));
+      expect(resolveShot(rightLow, power, mirrored, 0), `power ${power} mirrored`).toBe('goal');
+    }
+  });
+
+  it('still punishes a limp ball into that same far corner', () => {
+    const reached = keeperCommit(2, 0, keeperReach(flightMs(10)));
+    expect(resolveShot(leftLow, 10, reached, 0)).toBe('save');
+  });
+
   it('does reach it when the striker gives it the time', () => {
     const power = 24; // barely out of the weak band, so a long, slow ball
     const reached = keeperCommit(2, 0, keeperReach(flightMs(power)));

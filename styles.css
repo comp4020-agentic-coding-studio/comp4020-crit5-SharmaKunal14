@@ -226,38 +226,23 @@ main {
   }
 }
 
+/* Positioned once at the penalty spot; every movement after that is a
+   transform, driven by the Web Animations API so the flight can carry a real
+   arc and a perspective falloff instead of sliding in a straight line. */
 .ball {
   position: absolute;
-  bottom: 7%;
   left: 50%;
+  top: 88%;
   width: 7%;
   aspect-ratio: 1;
-  transform: translate(-50%, 50%);
-  background: radial-gradient(circle at 35% 30%, #ffffff, #dcdcdc 58%, #b0b0b0);
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 34% 28%, #ffffff, #dcdcdc 56%, #a8a8a8);
   border-radius: 50%;
-  box-shadow: 0 0.25rem 0.4rem rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0.2rem 0.45rem rgba(0, 0, 0, 0.45);
   z-index: 2;
+  will-change: transform;
 }
 
-/* A struck ball barely decelerates, so this is close to linear --- the easing
-   is only enough to take the mechanical edge off. Duration comes from the
-   shot's own flight time. */
-.ball.flying {
-  transition:
-    left var(--flight, 340ms) cubic-bezier(0.32, 0.72, 0.55, 1),
-    top var(--flight, 340ms) cubic-bezier(0.32, 0.72, 0.55, 1),
-    bottom var(--flight, 340ms) cubic-bezier(0.32, 0.72, 0.55, 1),
-    transform var(--flight, 340ms) linear,
-    opacity var(--flight, 340ms) ease;
-}
-
-.ball.deflected {
-  transition:
-    left var(--flight, 260ms) cubic-bezier(0.2, 0.7, 0.4, 1),
-    top var(--flight, 260ms) cubic-bezier(0.2, 0.7, 0.4, 1),
-    transform var(--flight, 260ms) ease-out,
-    opacity var(--flight, 260ms) ease-out;
-}
 
 /* --- Power -------------------------------------------------------------- */
 
@@ -270,7 +255,8 @@ main {
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 999px;
-  overflow: hidden;
+  /* visible, so the needle can stick out past the track and be seen */
+  overflow: visible;
   opacity: 0;
   transition: opacity 0.18s ease;
 }
@@ -279,30 +265,72 @@ main {
   opacity: 1;
 }
 
-/* The bands are fixed to the track, so "the green part" is a place the
-   striker can learn, not a colour that slides around under the marker. */
+/* Three bands, because there are exactly three things a shot can do. The
+   boundaries are the real thresholds in `shotQuality`, so the bar cannot lie
+   about what a release will produce: dead below 22, good to 95, over the bar
+   above it. An earlier four-colour version had an amber band that mapped to
+   no outcome at all, which is what made the meter unreadable. */
 .power-zones {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    0deg,
-    #6b7280 0 22%,
-    #4ade80 22% 88%,
-    #facc15 88% 95%,
-    #ef4444 95% 100%
-  );
-  opacity: 0.85;
+  border-radius: 999px;
+  overflow: hidden;
+  background: linear-gradient(0deg, #4b5563 0 22%, #22c55e 22% 95%, #ef4444 95% 100%);
 }
 
+/* The band boundaries, so the two thresholds are visible edges rather than a
+   guess about where one colour becomes another. */
+.power-zones::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(0deg, transparent 0 21.4%, rgba(0, 0, 0, 0.55) 21.4% 22.6%, transparent 22.6%),
+    linear-gradient(0deg, transparent 0 94.4%, rgba(0, 0, 0, 0.55) 94.4% 95.6%, transparent 95.6%);
+}
+
+/* The marker takes the colour of the band it is in. Two or three shots and
+   the mapping teaches itself: white-green marker means the ball goes in,
+   grey means it dribbles, red means it clears the bar. */
+/* A needle that overhangs the track on both sides. The previous version was a
+   thin white bar inside the track, which disappeared against the green and
+   sat exactly on a band boundary --- unreadable at the moment it matters. */
 .power-marker {
   position: absolute;
-  left: -18%;
-  width: 136%;
-  height: 0.32rem;
+  left: -34%;
+  width: 168%;
+  height: 0.4rem;
   bottom: 0%;
+  border-radius: 1px;
   background: #ffffff;
-  border-radius: 999px;
-  box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.7);
+  border: 1.5px solid rgba(0, 0, 0, 0.8);
+  box-shadow: 0 0 0.45rem rgba(0, 0, 0, 0.75);
+  transition: background 90ms linear;
+}
+
+/* An arrowhead on the outside edge, so the reading is unambiguous. */
+.power-marker::before {
+  content: '';
+  position: absolute;
+  left: -0.42rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: 0.42rem solid #ffffff;
+  border-top: 0.34rem solid transparent;
+  border-bottom: 0.34rem solid transparent;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9));
+}
+
+.power-marker.zone-weak,
+.power-marker.zone-weak::before {
+  background: #e2e8f0;
+  border-left-color: #e2e8f0;
+}
+
+.power-marker.zone-over,
+.power-marker.zone-over::before {
+  background: #fee2e2;
+  border-left-color: #fee2e2;
 }
 
 /* --- Scoreboard --------------------------------------------------------- */
