@@ -2,10 +2,12 @@
 
 ## What I built
 
-A five-shot penalty shootout. Hover to aim, hold spacebar and release to
-strike. The keeper paces the line while you aim, then dives from wherever it
-is — covering only the ground its top speed and the ball's flight time allow.
-Power buys one thing: time the keeper doesn't get.
+A two-player penalty shootout, red against blue, five kicks each and sudden
+death if they finish level. Hover to aim, hold spacebar and release to strike.
+The keeper paces the line while you aim, then dives from wherever it is —
+covering only the ground its top speed and the ball's flight time allow. Power
+buys one thing: time the keeper doesn't get. It reads each player's habits
+separately, so repeating a corner is punished per person.
 
 ## The moments that mattered
 
@@ -32,6 +34,14 @@ and `.goal` is the goalmouth's class, so it inherited `position: absolute`.
 Renaming it teaches nothing, so I added `spec/component-classes.test.ts` —
 fails if any class toggled at runtime also positions an element — and checked
 it went red on the old name first.
+
+**Where the brief and the feature disagree.**
+[`e5c237e`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/e5c237e)
+Two players need names, and a name screen means the opening frame is a form
+rather than the pitch — which is in tension with *no instructions anywhere on
+screen*. I built it with no instructional text at all (two coloured fields, a
+play triangle) and kept it in a single commit that can be reverted whole,
+rather than quietly letting a feature erode a published spec line.
 
 ## Grounding
 
