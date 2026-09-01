@@ -2,8 +2,9 @@
 
 ## What I built
 
-A two-player penalty shootout, red against blue, five kicks each and sudden
-death if they finish level. Hover to aim, hold spacebar and release to strike.
+A two-player penalty shootout, red against blue: five kicks each, dead-rubber
+kicks skipped once a lead is out of reach, sudden death if they finish level.
+Hover to aim, hold spacebar and release to strike.
 The keeper paces the line while you aim, then dives from wherever it is —
 covering only the ground its top speed and the ball's flight time allow. Power
 buys one thing: time the keeper doesn't get. It reads each player's habits
@@ -35,9 +36,9 @@ it went red on the old name first.
 **Where the brief and the feature disagree.**
 [`e5c237e`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/e5c237e)
 Two players need names, so the opening frame became a form rather than the
-pitch — in tension with *no instructions anywhere on screen*. I gave it no
-instructional text (two coloured fields, a play triangle) and kept it in one
-revertible commit, rather than let a feature quietly erode a spec line.
+pitch — in tension with *no instructions anywhere on screen*, and more so once
+it gained a heading. I kept the two-player work in commits that revert whole,
+rather than let a feature quietly erode a published spec line.
 
 ## Grounding
 
