@@ -1,70 +1,54 @@
 # Process overview
 
-<!-- TEMPLATE: this file is a shape to fill in, not a form. Replace everything
-     in it with your own overview, and delete this comment — `pnpm
-     check:evidence` will remind you if it's still here. -->
-
-A reading-guide to how the work came together --- a map to your process, not an
-essay about it. Markers read this file and follow its citations; they don't
-trawl the repo for evidence you didn't point at, so if a moment mattered, cite
-it.
-
-This file is the shape; the course site's
-[assessment page](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#what-you-submit)
-is the requirement, and its
-[word counts](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#word-counts)
-cover every deliverable.
-
 ## What I built
 
-One paragraph: the thing, and the idea behind it.
+A five-shot penalty shootout. You aim by hovering over the goal — the mouse
+position maps straight onto a 6-zone target grid — then hold spacebar (or the
+pointer) to charge an oscillating power meter and release to strike. Too weak
+and the keeper reaches the zone next to yours; too long a hold and the ball
+sails over the bar; get it right and away from wherever the keeper's adaptive
+AI has committed, and it's a goal. No screen ever explains this — the reticle
+and the meter are the only feedback, and the opening frame is just a ball, a
+goal, and an empty pitch.
 
 ## The moments that mattered
 
-Three or four for an assignment; fewer is fine for a weekly prototype. Keep the
-list short so each moment has room to do all four jobs:
+1. **Choosing what "power" means.** The brief only said "spacebar decides
+   power." A single press-to-set-a-level felt thin for a five-minute game, so
+   I went with hold-to-charge/release-to-fire instead — it turns the same one
+   input into a timing skill, and it creates a failure mode that's entirely
+   the player's own mistake (over-holding sails the ball over the bar) rather
+   than only ever "the keeper guessed right." That's what makes the loss
+   condition feel earned rather than arbitrary.
+   [`c770dfd`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/c770dfd)
 
-1. **what happened** --- the problem, or the thing that went wrong
-2. **what you did instead of the obvious thing** --- the call you made, and why
-   it beat the obvious one
-3. **how you knew it was right** --- the check you ran, the viewport you looked
-   at, what you read before accepting the diff
-4. **the citation** --- a commit or commit range, a `CLAUDE.md` change, a check
-   that went from red to green, a prompt paired with the commit it produced
+2. **Separating the rule from the DOM.** `resolveShot`/`chooseKeeperZone` live
+   in `game-logic.ts` with no DOM, timers, or randomness — pure functions of
+   (zone, power, keeper history). That's what let me write a focused,
+   deterministic test for the one rule the spec asks for, and it's what let me
+   reason about edge cases (a weak shot next to the keeper vs. a well-struck
+   one) as plain data before wiring any pixels to it.
+   [`c770dfd`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/c770dfd)
 
-Jobs 2 and 3 are the ones the repo can't tell a reader on its own, so they're
-where the marks are. The strongest moments are the ones where a correction
-landed in the **harness** --- the standards and checks your work has to satisfy
---- rather than in a retry: a rule added to `CLAUDE.md`, a check wired up, an
-attempt thrown away. Retrying until it passes is the routine case, and changing
-what the work runs against is the skilled one.
+3. **The reticle bug only playing found.** `tsc`, `vite build`, and all 25
+   tests were green after the first full build, but a headless-Chromium
+   screenshot of the actual running page showed a stray circle sitting in the
+   top-left corner before the first mouse move — the reticle defaults to
+   `(0, 0)` until JavaScript positions it, and nothing in the test suite
+   exercises "before any input happens." No unit test would have caught this;
+   it took looking at the rendered frame. Fixed by hiding it via opacity until
+   the first `pointermove`.
+   [`1bc9ebf`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/1bc9ebf)
 
-Cite each moment as a link whose text is the commit hash or range and whose
-target is this repo's commit or compare URL, so a reader clicks straight to the
-evidence:
+## How I directed, grounded, and corrected the work
 
-- one commit: [`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d)
-- a range:
-  [`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
-
-To pair a prompt with the commit it produced, quote the prompt (curated, not a
-full transcript) next to the citation:
-
-> the prompt, verbatim
-
-Screenshots are welcome where one carries the verification better than a
-sentence does. Commit the file to this repo and link it with a **relative**
-path, which is what makes it render on GitHub: `![alt text](docs/before.png)`.
-Images don't count towards the word count and don't replace the citation.
-
-## Before you ship
-
-`pnpm check:evidence` verifies your citations resolve to real commits, that a
-reflection entry the marker reads is in `reflections/`, and that your
-`CLAUDE.md` is there --- before a marker ever opens the file. It checks that
-your map is traceable, not that it is good: the marker judges whether your
-small, deliberately chosen set of moments shows real judgement and reflection. A
-green check is not a substitute for that curation.
-
-Images aren't checked: unlike a citation whose SHA doesn't resolve, a broken
-image is visible the moment this file is rendered on GitHub.
+I specified the mechanic myself (striker/keeper, hover-aim, spacebar-power)
+before any code was written, and pushed back on the agent's first-pass
+critique of my own idea — direction+power alone read as a 10-second toy, so I
+asked for a concrete change (timed hold/release) rather than accepting a vague
+"add depth" gesture. I grounded every claim of correctness in something
+observable: `pnpm check` for the logic and build, then an actual headless
+browser driving real pointer/keyboard events against the built page at both
+the desktop and phone marking viewports, screenshotted at each step, before
+accepting the game as working. The correction that mattered was the reticle
+fix above — caught by looking at the play, not by reading the diff.
