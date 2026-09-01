@@ -411,7 +411,7 @@ function showEndScreen() {
   const won = matchWinner(scores);
   const winner = document.createElement('div');
   winner.className = `winner ${won === 0 ? 'red' : 'blue'}`;
-  winner.textContent = won === null ? '' : `${names[won]} Wins`;
+  winner.textContent = won === null ? '' : names[won];
 
   const replay = document.createElement('div');
   replay.className = 'replay';

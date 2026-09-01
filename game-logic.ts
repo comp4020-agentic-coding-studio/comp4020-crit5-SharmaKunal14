@@ -141,38 +141,11 @@ export function nextShooter(shots: Pair): PlayerIndex {
   return shots[0] <= shots[1] ? 0 : 1;
 }
 
-// Kicks each player still has coming. In regulation that is whatever is left
-// of their five; in sudden death only the player who is behind on kicks has
-// one owing, because a sudden-death round always completes.
-export function remainingKicks(shots: Pair, regulation = REGULATION_KICKS): Pair {
-  if (shots[0] < regulation || shots[1] < regulation) {
-    return [Math.max(0, regulation - shots[0]), Math.max(0, regulation - shots[1])];
-  }
-  const behind = Math.max(shots[0], shots[1]);
-  return [shots[0] < behind ? 1 : 0, shots[1] < behind ? 1 : 0];
-}
-
-// The real shootout stopping rule: once one player is further ahead than the
-// other could reach with every kick they have left, the rest are dead rubber
-// and are not taken. 3–0 after three each is over --- the trailing player can
-// reach at most 2.
-export function decidedEarly(
-  scores: Pair,
-  shots: Pair,
-  regulation = REGULATION_KICKS
-): PlayerIndex | null {
-  const left = remainingKicks(shots, regulation);
-  if (scores[0] > scores[1] + left[1]) return 0;
-  if (scores[1] > scores[0] + left[0]) return 1;
-  return null;
-}
-
-// Otherwise a shootout only ends on a completed round: equal attempts, both
-// past the regulation five, and someone ahead. Anything else keeps going ---
-// which is what turns a level score after five into sudden death, played one
-// kick each until a round separates them, rather than a draw.
+// A shootout can only end on a completed round: both players must have had
+// the same number of attempts, both must be past the regulation five, and
+// someone has to be ahead. Anything else means it keeps going --- which is
+// what turns a level score after five into sudden death rather than a draw.
 export function isMatchOver(scores: Pair, shots: Pair, regulation = REGULATION_KICKS): boolean {
-  if (decidedEarly(scores, shots, regulation) !== null) return true;
   if (shots[0] !== shots[1]) return false;
   if (shots[0] < regulation) return false;
   return scores[0] !== scores[1];
