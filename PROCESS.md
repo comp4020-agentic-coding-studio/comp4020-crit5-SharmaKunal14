@@ -5,12 +5,15 @@
 A five-shot penalty shootout. You aim by hovering over the goal — the mouse
 position maps straight onto a six-zone target grid — then hold spacebar (or
 the pointer) to charge an oscillating power meter, and release to strike. The
-keeper paces the goal line the whole time you are aiming, and dives to where
-it will be when the ball arrives: a fierce shot gives it almost no time to
-travel, a limp one hands it plenty, and one held too long clears the bar
-entirely. Lean on the same corner twice and it starts camping there. No screen
-ever explains any of this — the opening frame is a ball on the spot, a goal,
-and a keeper already moving.
+keeper paces the goal line the whole time you are aiming, and when you strike
+it dives from wherever it happens to be — covering only as much ground as its
+own top speed and the ball's flight time allow. A fierce shot away from it is
+a goal because it physically cannot get there; a limp one hands it all the
+time it needs; one held too long clears the bar entirely. Lean on the same
+corner twice and it starts guessing that way, though guessing right and
+arriving in time remain two different things. No screen ever explains any of
+this — the opening frame is a ball on the spot, a goal, and a keeper already
+moving.
 
 ## The moments that mattered
 
@@ -83,6 +86,33 @@ and a keeper already moving.
    file is harness, not a contract test: it answers no line of this week's
    spec, and it comes with me into next week's repo.
    [`2652d8f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/2652d8f)
+
+6. **The rule was wrong, not the numbers.** Playing it again turned up the
+   worst bug of the week: shoot the far corner at full power with the keeper
+   standing at the opposite post, and it still got saved. The keeper appeared
+   at the far post as the ball left. The cause was that my keeper was
+   *assigned* a zone — if your habit said left, it was placed left, and
+   distance simply never entered the calculation. The verdict was computed
+   before anything moved, and the animation was a dramatisation of a decision
+   already made.
+
+   The fix was to delete the idea of assigning it anywhere. The keeper now has
+   a position, a top speed, and whatever time the ball's flight gives it:
+   `reach = flight(power) × speed`, and it gets `clamp(guess − from, ±reach)`
+   of the way toward what it wants. A save became geometry — is the ball
+   within the keeper's body radius of where it actually arrived — instead of a
+   verdict. That also gave power a single legible job: it buys time the keeper
+   doesn't get. And because the animation is driven by the same `flight(power)`
+   through a `--flight` custom property, what you watch is the race the rule
+   just resolved, not a re-enactment of it.
+
+   I pinned the bug rather than just fixing it: `spec/shot-resolution.test.ts`
+   now asserts that a keeper at one post cannot reach the other against a firm
+   shot, that it can when the striker gives it the time, and that it never
+   travels further than its reach in either direction. Then I measured the
+   real thing — keeper eases 1.81 → 0.78 columns while the ball crosses to
+   0.00, and the ball wins.
+   [`40ebe23`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-SharmaKunal14/commit/40ebe23)
 
 ## How I directed, grounded, and corrected the work
 

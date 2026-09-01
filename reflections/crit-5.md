@@ -15,6 +15,14 @@ inputs together — the corner and the power stopped being separate decisions.
 The breakthrough was recognising that "this feels unfair" was a design report,
 not a difficulty complaint.
 
+The same lesson arrived again, harder, at the end of the week. A shot into the
+far corner at full power was still being saved by a keeper standing at the
+opposite post — because I had written a keeper that gets *assigned* a corner
+rather than one that has to travel to it. Distance was simply not in the
+model. Fixing it meant giving the keeper a speed and letting a save be
+geometry, which is the version I should have written first: the rule now
+describes the situation instead of announcing the result.
+
 **What did this work change about who I want to be as a software developer?**
 
 It put a hard edge on how much a green suite is worth. Every check passed on a
