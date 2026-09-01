@@ -3,17 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>COMP4020 prototype</title>
+    <title>Shootout</title>
     <meta
       name="description"
-      content="Replace this with one sentence saying what this page is. A search result and a link preview both show it."
+      content="A five-shot penalty shootout: aim with the mouse, hold and release to strike."
     />
 
-    <!--
-      The link-preview card: public/card.png, 1200x630 --- replace it. The URL
-      resolves against this page, like any link. No og:title/og:description:
-      scrapers fall back to the <title> and description above.
-    -->
     <meta property="og:type" content="website" />
     <meta property="og:image" content="./card.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -27,11 +22,19 @@
       </nav>
     </header>
     <main>
-      <h1>COMP4020 prototype</h1>
-      <p>
-        Replace this with your prototype. This week's brief is on the course website;
-        <code>spec/README.md</code> explains how the checks in this repo relate to it.
-      </p>
+      <h1 class="visually-hidden">Shootout</h1>
+      <div id="pitch" class="pitch">
+        <div id="goal" class="goal">
+          <div id="keeper" class="keeper"></div>
+        </div>
+        <div id="reticle" class="reticle" aria-hidden="true"></div>
+        <div id="ball" class="ball"></div>
+        <div id="power-meter" class="power-meter" aria-hidden="true">
+          <div id="power-fill" class="power-fill"></div>
+        </div>
+        <div id="scoreboard" class="scoreboard" aria-live="polite"></div>
+        <div id="end-screen" class="end-screen hidden"></div>
+      </div>
     </main>
     <script type="module" src="./main.ts"></script>
   </body>
