@@ -1,19 +1,24 @@
 import {
   favouriteRow,
   flightMs,
+  isMatchOver,
   keeperCommit,
   keeperGuess,
   keeperReach,
+  kicksToShow,
+  matchWinner,
+  nextShooter,
   pacePosition,
   resolveShot,
   shotQuality,
   type Column,
+  type Pair,
+  type PlayerIndex,
   type Row,
   type ShotOutcome,
   type Zone,
 } from './game-logic';
 
-const TOTAL_SHOTS = 5;
 const POWER_CYCLE_MS = 1500;
 // Slow enough that the keeper's walk never outpaces its own dive (see
 // KEEPER_SPEED), which also gives the striker time to actually read it.
@@ -32,31 +37,47 @@ const reticle = document.getElementById('reticle') as HTMLDivElement;
 const ball = document.getElementById('ball') as HTMLDivElement;
 const powerMeter = document.getElementById('power-meter') as HTMLDivElement;
 const powerMarker = document.getElementById('power-marker') as HTMLDivElement;
-const scoreboard = document.getElementById('scoreboard') as HTMLDivElement;
 const endScreen = document.getElementById('end-screen') as HTMLDivElement;
+const nameScreen = document.getElementById('name-screen') as HTMLFormElement;
 
-type Phase = 'aiming' | 'charging' | 'resolving' | 'over';
+const rows = [
+  document.getElementById('row-0') as HTMLDivElement,
+  document.getElementById('row-1') as HTMLDivElement,
+];
+const nameLabels = [
+  document.getElementById('name-0') as HTMLSpanElement,
+  document.getElementById('name-1') as HTMLSpanElement,
+];
+const pipRows = [
+  document.getElementById('pips-0') as HTMLDivElement,
+  document.getElementById('pips-1') as HTMLDivElement,
+];
+const nameInputs = [
+  document.getElementById('name-input-0') as HTMLInputElement,
+  document.getElementById('name-input-1') as HTMLInputElement,
+];
 
-let phase: Phase = 'aiming';
+const PLAYER_CLASS = ['player-red', 'player-blue'] as const;
+const PLAYER_FALLBACK = ['Red', 'Blue'];
+
+type Phase = 'naming' | 'aiming' | 'charging' | 'resolving' | 'over';
+
+let phase: Phase = 'naming';
 let aim: Zone = { col: 1, row: 0 };
-let history: Zone[] = [];
-let goals = 0;
-let shotsTaken = 0;
 let chargeStart = 0;
 let pace = 1;
 let paceClock = 0;
 let lastFrame = 0;
 
-// replaceChildren, not append: a hot reload re-runs this module against the
-// live DOM, and appending would stack a second row of pips into the same flex
-// container.
-scoreboard.replaceChildren(
-  ...Array.from({ length: TOTAL_SHOTS }, () => {
-    const pip = document.createElement('div');
-    pip.className = 'pip';
-    return pip;
-  })
-);
+// Each player is read separately by the keeper: a habit is one person's, and
+// blending two strikers' histories would have it guessing at an average
+// nobody actually plays.
+let names = [...PLAYER_FALLBACK];
+let histories: [Zone[], Zone[]] = [[], []];
+let scores: Pair = [0, 0];
+let shots: Pair = [0, 0];
+let results: [boolean[], boolean[]] = [[], []];
+let current: PlayerIndex = 0;
 
 /* --- Geometry ----------------------------------------------------------- */
 
@@ -228,8 +249,36 @@ function deflectBall(zone: Zone, keeperPosition: number) {
   );
 }
 
-function markPip(index: number, outcome: ShotOutcome) {
-  (scoreboard.children[index] as HTMLDivElement).classList.add(`pip--${outcome}`);
+// Rebuilt from state rather than mutated in place, so sudden death can grow
+// the rows without any of the bookkeeping that a five-slot assumption needs.
+function renderScoreboard() {
+  const slots = kicksToShow(shots);
+
+  for (const player of [0, 1] as PlayerIndex[]) {
+    const row = pipRows[player];
+    while (row.children.length < slots) {
+      const pip = document.createElement('div');
+      pip.className = 'pip';
+      row.appendChild(pip);
+    }
+    while (row.children.length > slots) row.lastElementChild!.remove();
+
+    for (let kick = 0; kick < slots; kick++) {
+      const pip = row.children[kick] as HTMLDivElement;
+      pip.className = 'pip';
+      if (kick >= shots[player]) continue;
+      pip.classList.add(results[player][kick] ? 'pip--scored' : 'pip--spent');
+    }
+
+    nameLabels[player].textContent = names[player];
+    rows[player].classList.toggle('is-shooting', phase !== 'over' && current === player);
+  }
+}
+
+function renderTurn() {
+  reticle.classList.remove(...PLAYER_CLASS);
+  reticle.classList.add(PLAYER_CLASS[current]);
+  renderScoreboard();
 }
 
 /* --- Loop --------------------------------------------------------------- */
@@ -286,6 +335,8 @@ function releaseCharge(now: number) {
 function resolveTurn(power: number) {
   phase = 'resolving';
 
+  const shooter = current;
+  const history = histories[shooter];
   const zone = aim;
   const flight = flightMs(power);
 
@@ -303,17 +354,17 @@ function resolveTurn(power: number) {
   flyBall(outcome, zone, flight);
 
   history.push(zone);
-  shotsTaken += 1;
-  const shotIndex = shotsTaken - 1;
+  shots[shooter] += 1;
+  results[shooter].push(outcome === 'goal');
+  if (outcome === 'goal') scores[shooter] += 1;
 
   // Everything that reacts to the result waits for the ball to actually get
   // there. Scoring it at the moment of the strike is what made the old build
   // feel like the verdict came before the shot.
   window.setTimeout(() => {
-    markPip(shotIndex, outcome);
+    renderScoreboard();
 
     if (outcome === 'goal') {
-      goals += 1;
       goal.classList.add('scored');
     } else if (outcome === 'save') {
       keeper.classList.add('saved');
@@ -327,10 +378,12 @@ function resolveTurn(power: number) {
       renderKeeperRecover();
 
       window.setTimeout(() => {
-        if (shotsTaken >= TOTAL_SHOTS) {
+        if (isMatchOver(scores, shots)) {
           showEndScreen();
         } else {
+          current = nextShooter(shots);
           phase = 'aiming';
+          renderTurn();
         }
       }, RECOVER_MS);
     }, SETTLE_MS);
@@ -339,29 +392,46 @@ function resolveTurn(power: number) {
 
 function showEndScreen() {
   phase = 'over';
+  renderScoreboard();
   endScreen.replaceChildren();
 
   const tally = document.createElement('div');
   tally.className = 'tally';
-  tally.textContent = `${goals} / ${TOTAL_SHOTS}`;
+  const left = document.createElement('span');
+  left.className = 'red';
+  left.textContent = String(scores[0]);
+  const dash = document.createElement('span');
+  dash.className = 'dash';
+  dash.textContent = '–';
+  const right = document.createElement('span');
+  right.className = 'blue';
+  right.textContent = String(scores[1]);
+  tally.append(left, dash, right);
+
+  const won = matchWinner(scores);
+  const winner = document.createElement('div');
+  winner.className = `winner ${won === 0 ? 'red' : 'blue'}`;
+  winner.textContent = won === null ? '' : names[won];
 
   const replay = document.createElement('div');
   replay.className = 'replay';
 
-  endScreen.append(tally, replay);
+  endScreen.append(tally, winner, replay);
   endScreen.classList.remove('hidden');
 }
 
 function restart() {
-  goals = 0;
-  shotsTaken = 0;
-  history = [];
-  for (const pip of Array.from(scoreboard.children)) pip.className = 'pip';
+  scores = [0, 0];
+  shots = [0, 0];
+  results = [[], []];
+  histories = [[], []];
+  current = 0;
   powerMarker.style.bottom = '0%';
   resetBall();
   renderKeeperRecover();
   endScreen.classList.add('hidden');
   phase = 'aiming';
+  renderTurn();
 }
 
 /* --- Input -------------------------------------------------------------- */
@@ -374,13 +444,17 @@ function aimAt(clientX: number, clientY: number) {
   reticle.classList.add('visible');
 }
 
+function inPlay() {
+  return phase === 'aiming' || phase === 'charging' || phase === 'resolving';
+}
+
 pitch.addEventListener('pointermove', (event) => {
-  if (phase === 'over') return;
+  if (!inPlay()) return;
   aimAt(event.clientX, event.clientY);
 });
 
 pitch.addEventListener('pointerdown', (event) => {
-  if (phase === 'over') return;
+  if (!inPlay()) return;
   pitch.setPointerCapture(event.pointerId);
   aimAt(event.clientX, event.clientY);
   startCharge(performance.now());
@@ -389,8 +463,14 @@ pitch.addEventListener('pointerdown', (event) => {
 pitch.addEventListener('pointerup', () => releaseCharge(performance.now()));
 pitch.addEventListener('pointercancel', () => releaseCharge(performance.now()));
 
+// A space belongs to whoever is typing a name; it only strikes the ball once
+// the match is under way.
+function typingAName(event: Event) {
+  return event.target instanceof HTMLInputElement;
+}
+
 window.addEventListener('keydown', (event) => {
-  if (event.code !== 'Space') return;
+  if (event.code !== 'Space' || typingAName(event)) return;
   event.preventDefault();
   if (event.repeat) return;
   if (phase === 'over') {
@@ -401,14 +481,27 @@ window.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('keyup', (event) => {
-  if (event.code !== 'Space') return;
+  if (event.code !== 'Space' || typingAName(event)) return;
   event.preventDefault();
   releaseCharge(performance.now());
 });
 
 endScreen.addEventListener('click', restart);
 
+/* --- Names -------------------------------------------------------------- */
+
+nameScreen.addEventListener('submit', (event) => {
+  event.preventDefault();
+  names = nameInputs.map(
+    (input, i) => input.value.trim().slice(0, 12) || PLAYER_FALLBACK[i]
+  );
+  nameScreen.classList.add('hidden');
+  phase = 'aiming';
+  restart();
+});
+
 /* --- Go ----------------------------------------------------------------- */
 
 resetBall();
+renderTurn();
 requestAnimationFrame(frame);

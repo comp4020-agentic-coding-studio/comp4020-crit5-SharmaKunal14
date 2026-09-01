@@ -127,3 +127,37 @@ export function pacePosition(elapsedMs: number, cycleMs: number): number {
 export function paceColumn(position: number): Column {
   return clamp(Math.round(position), 0, 2) as Column;
 }
+
+/* --- The match ----------------------------------------------------------- */
+
+export type PlayerIndex = 0 | 1;
+export type Pair = [number, number];
+
+export const REGULATION_KICKS = 5;
+
+// Kicks alternate, so it is always whoever has taken fewer. Level means the
+// first player is up, which makes the opening kick belong to player one.
+export function nextShooter(shots: Pair): PlayerIndex {
+  return shots[0] <= shots[1] ? 0 : 1;
+}
+
+// A shootout can only end on a completed round: both players must have had
+// the same number of attempts, both must be past the regulation five, and
+// someone has to be ahead. Anything else means it keeps going --- which is
+// what turns a level score after five into sudden death rather than a draw.
+export function isMatchOver(scores: Pair, shots: Pair, regulation = REGULATION_KICKS): boolean {
+  if (shots[0] !== shots[1]) return false;
+  if (shots[0] < regulation) return false;
+  return scores[0] !== scores[1];
+}
+
+export function matchWinner(scores: Pair): PlayerIndex | null {
+  if (scores[0] === scores[1]) return null;
+  return scores[0] > scores[1] ? 0 : 1;
+}
+
+// How many kicks each player's scoreboard needs room for: the regulation five,
+// plus however far sudden death has run.
+export function kicksToShow(shots: Pair, regulation = REGULATION_KICKS): number {
+  return Math.max(regulation, shots[0], shots[1]);
+}
